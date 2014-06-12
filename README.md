@@ -7,7 +7,7 @@ This is draft version of Readme, which needs more automation of steps described
 1. Environment with Docker installed ( hint for vagrant users: you may use attached `Vagrantfile`)
 2. Access to Conjur appliance 
 3. Conjur CLI installed in your working environment (it may be installed in separate environment, but you will need files from there)
-4. Dedicated mysql server (hint: it can be launched by `docker -d --name 'mysqldemo' -t tutum/mysql`, and password can be discovered by `docker logs mysqldemo` )
+4. Dedicated mysql server (hint: it can be launched by `docker run -d --name 'mysqldemo' -t tutum/mysql`, and password can be discovered by `docker logs mysqldemo` )
 
 # Preparation 
 
@@ -24,7 +24,7 @@ Log into Conjur, and store your Mysql password here, create appropriate permissi
 
 ```
     conjur variable create demo/docker/mysql/password 
-    conjur variable values add demo/docker/mysql/password <MYSQL PASSWORD>
+    conjur variable values add demo/docker/mysql/password <MYSQL PASSWORD>UN 
     conjur layer create demo/docker/containers/wordpress 
     conjur resource permit variable:demo/docker/mysql/password layer:demo/docker/containers/wordpress execute
 ```
