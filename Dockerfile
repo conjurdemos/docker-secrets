@@ -10,7 +10,6 @@ RUN apt-get update
 RUN apt-get -y -y install make ruby2.0 ruby2.0-dev ruby-json
 RUN gem install conjur-cli
 
-
 ##########################################################################
 ########## Conjur configuration (example files used) #####################
 ########## update them for production, but keep target names #############
@@ -19,28 +18,27 @@ RUN gem install conjur-cli
 # Files describing Conjur endpoint
 # They should be generated with "conjur init" locally before the build
 # See details at http://developer.conjur.net/reference/tools/init.html
-ADD example/.conjurrc   /.conjurrc
-ADD example/conjur-demo.pem /conjur.pem
 
 # File describing variables to be retrieved, 
 # See details at http://developer.conjur.net/reference/tools/conjurenv#Format.of.environment.configuration
-ADD example/.conjurenv  /.conjurenv 
+
+ADD conjur /etc
 
 ##########################################################################
 ################# Nothing should be changed below this point #############
 ##########################################################################
 
 # Fix .conjurrc to find certificate in predefined location within container FS instead of local path(whatever it was)
-RUN sed -i -e 's/cert_file: .*//' /.conjurrc
-RUN echo "cert_file: /conjur.pem" >> /.conjurrc
+#RUN sed -i -e 's/cert_file: .*//' /etc/.conjurrc
+#RUN echo "cert_file: /conjur.pem" >> /etc/.conjurrc
 
 # File .netrc with authentication data for container identity should be managed by host OS outside of Docker
 # Directory '/conjur' with '.netrc' file is expected to be mounted in runtime
 # Fix below adjusts .conjurrc to look for identity file in mounted directory
-RUN echo "netrc_path: /conjur/.netrc" >> /.conjurrc
+#RUN echo "netrc_path: /conjur/.netrc" >> /.conjurrc
 
 # explicit setting for future launches of 'conjur env' to find .conjurrc within container FS
-ENV CONJURRC /.conjurrc
+ENV CONJURRC /etc/conjur/conjur.conf
 
 # Simple wrapper to check presence of /conjur/.netrc (directory /conjur is expected to be mounted during container run)
 ADD conjur.sh /conjur.sh

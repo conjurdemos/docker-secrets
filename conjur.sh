@@ -1,8 +1,8 @@
 #!/bin/bash
 
-if [ ! -r /conjur/.netrc ] ; then
-  echo "ERROR: Please, mount directory /conjur with .netrc in it"
+if [ ! -r /etc/conjur/.netrc ] ; then
+  echo "ERROR: You must mount directory /etc/conjur"
   exit 1
 fi
 
-conjur env run -c /.conjurenv -- $*
+conjur env run -c /etc/conjur/.conjurenv -- $*
