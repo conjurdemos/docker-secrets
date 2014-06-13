@@ -20,7 +20,7 @@ To run this demo, you need the following:
 1. A working [Docker](https://docker.com). If you have Vagrant, you can use the included Vagrantfile to create one.
 1. A Conjur server and command-line client. See [developer.conjur.net](http://developer.conjur.net/setup) for installation and setup instructions.
 
-# Preparation
+# General preparation
 
 ## Vagrant up (optional)
 
@@ -32,6 +32,8 @@ $ vagrant ssh
 ```
 
 ## Initialize Conjur
+
+In order to manage secret, permissions and host identity for this demo, Conjur CLI setup is required.
 
 ### conjur init
 
@@ -120,8 +122,13 @@ Give Wordpress permission to `execute` the variable:
 $ conjur resource permit variable:demo/docker/mysql/password host:demo/docker/wordpress execute
 ```
 
-## Build the Wordpress container
+# Docker image preparation
 
+In order to launch docker-ized application, docker image is required. 
+
+We'll take already existing image with Wordpress, and set up Conjur tools on top of it, storing the result as new local image.
+
+## Prepare Conjur files to be used by image
 
 Create the `.conjurenv` file which will expose secrets and other configuration to Wordpress:
 
@@ -151,16 +158,16 @@ Wrote certificate to ./conjur-demo.pem
 Wrote configuration to ./conjur.conf
 ```
 
-Use a local netrc:
+Use identity file `netrc` from subdirectory (it will not be part of the image, should be mounted into container at runtime):
 
 ```
-echo 'netrc_path: ./.netrc' >> conjur.conf
+echo 'netrc_path: ./identity/.netrc' >> conjur.conf
 ```
 
-Login to Conjur with new host identity
+Return to main working directory
 
 ```
-$ CONJURRC=./conjur.conf conjur authn login -u host/$host_id -p $host_api_key
+cd ../
 ```
 
 
@@ -176,13 +183,23 @@ $ docker build -t conjur-wordpress ./
 
 # Runtime
 
-## Launch new container 
+
+## Prepare host identity file for new container
+
+Login to Conjur with new host identity
+
+```
+$ CONJURRC=./conjur.conf conjur authn login -u host/$host_id -p $host_api_key
+```
+
+## Launch new container with mounted identity directory 
 
 Run the Conjur-ized Wordpress container, mounting the directory which contains the Conjur endpoint config and the host identity:
 
 ```
-docker run -d -P --name 'wordpress' -v $PWD/conjur:/etc/conjur conjur-wordpress
+docker run -d -P --name 'wordpress' -v $PWD/conjur/identity:/etc/conjur/identity conjur-wordpress
 ```
+    Container will refuse to start if directory /etc/conjur/identity/.netrc is not mounted
 
 You're all set. Inspect logs of just launched container:
 
