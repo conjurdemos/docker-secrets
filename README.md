@@ -4,7 +4,7 @@ This demo shows how to run Wordpress in a Docker container, with secrets (in thi
 
 It works like this:
 
-1. Build a Docker container to run Wordpress. This container will start with a base Wordpress container, and onto that we will add `[conjur init](https://developer.conjur.net/reference/tools/init.html)` configuration.
+1. Build a Docker container to run Wordpress. This container will start with a base Wordpress container, and onto that we will add [conjur init](https://developer.conjur.net/reference/tools/init.html) configuration.
 1. Launch a Docker container running MySQL. We obtain the MySQL IP address and admin password from the Docker log.
 1. Store the MySQL admin password in a Conjur [variable](https://developer.conjur.net/reference/services/directory/variable).
 1. Create a [host](https://developer.conjur.net/reference/services/directory/host) record for the Wordpress container, and give it permission to read the MySQL password variable.
