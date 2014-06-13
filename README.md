@@ -67,7 +67,7 @@ Run the MySQL container:
 $ docker run -d --name 'mysqldemo' -t tutum/mysql
 ```
 
-## Inspect MySQL
+### Inspect MySQL
 
 Find out the admin password by checking the mysqldemo container log:
 
@@ -98,7 +98,7 @@ $ conjur variable create -v $mysql_password demo/docker/mysql/password
 }
 ```
 
-## Create the Wordpress host
+## Create the Wordpress host identity in Conjur
 
 Create the Wordpress host:
 
@@ -157,7 +157,7 @@ Use a local netrc:
 echo 'netrc_path: ./.netrc' >> conjur.conf
 ```
 
-Login to conig/
+Login to Conjur with new host identity
 
 ```
 $ CONJURRC=./conjur.conf conjur authn login -u host/$host_id -p $host_api_key
