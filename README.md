@@ -60,6 +60,15 @@ Please enter your password (it will not be echoed):
 Logged in
 ```
 
+### create namespace for demo assets
+
+Although this is not mandatory for succcessful accomplishment of the demo, it make sense to use namespace to separate demo assets from anything else in your Conjur server.
+
+Command below generates random unique six-chars ID.
+
+```
+$ ns=`conjur id create` 
+```
 
 ## Launch MySQL
 
@@ -92,9 +101,9 @@ $ mysql_ip="172.17.0.2"
 Store the MySQL admin password in a Conjur variable:
 
 ```
-$ conjur variable create -v $mysql_password demo/docker/mysql/password
+$ conjur variable create -v $mysql_password demo/docker/$ns/mysql/password
 {
-  "id": "demo/docker/mysql/password",
+  "id": "demo/docker/$ns/mysql/password",
   …
   "version_count": 1
 }
@@ -102,12 +111,12 @@ $ conjur variable create -v $mysql_password demo/docker/mysql/password
 
 ## Create the Wordpress host identity in Conjur
 
-Create the Wordpress host:
+Create the Wordpress host, store it's ID and API key:
 
 ```
-$ conjur host create demo/docker/wordpress | tee host.json
+$ conjur host create demo/docker/$ns/wordpress | tee host.json
 {
-  "id": "demo/docker/wordpress",
+  "id": "demo/docker/$ns/wordpress",
   …
   "api_key": "3347e103h8ghze21dxv3b2y19vm6sq93ev3mw7bn13q47f883kxjhaa"
 }
@@ -119,7 +128,7 @@ $ host_api_key=`cat host.json | jsonfield api_key`
 Give Wordpress permission to `execute` the variable:
 
 ```
-$ conjur resource permit variable:demo/docker/mysql/password host:demo/docker/wordpress execute
+$ conjur resource permit variable:demo/docker/$ns/mysql/password host:demo/docker/$ns/wordpress execute
 ```
 
 # Docker image preparation
@@ -138,7 +147,7 @@ $ cd conjur
 $ cat << ENV > .conjurenv
 db_host: "$mysql_ip"
 db_port: "3306"
-db_pass: !var demo/docker/mysql/password
+db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
 
@@ -158,18 +167,11 @@ Wrote certificate to ./conjur-demo.pem
 Wrote configuration to ./conjur.conf
 ```
 
-Use identity file `netrc` from subdirectory (it will not be part of the image, should be mounted into container at runtime):
-
-```
-echo 'netrc_path: ./identity/.netrc' >> conjur.conf
-```
-
 Return to main working directory
 
 ```
 cd ../
 ```
-
 
 ## Build docker image 
 
@@ -184,22 +186,14 @@ $ docker build -t conjur-wordpress ./
 # Runtime
 
 
-## Prepare host identity file for new container
-
-Login to Conjur with new host identity
-
-```
-$ CONJURRC=./conjur.conf conjur authn login -u host/$host_id -p $host_api_key
-```
-
 ## Launch new container with mounted identity directory 
 
-Run the Conjur-ized Wordpress container, mounting the directory which contains the Conjur endpoint config and the host identity:
+Run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
 
 ```
-docker run -d -P --name 'wordpress' -v $PWD/conjur/identity:/etc/conjur/identity conjur-wordpress
+docker run -d -P --name 'wordpress' -e CONJUR_HOST_ID=$host_id -e CONJUR_API_KEY=$host_api_key conjur-wordpress
 ```
-    Container will refuse to start if directory /etc/conjur/identity/.netrc is not mounted
+    Container will refuse to start if identity parameters are not provided
 
 You're all set. Inspect logs of just launched container:
 

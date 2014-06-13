@@ -22,7 +22,7 @@ RUN gem install conjur-cli
 # File describing variables to be retrieved, 
 # See details at http://developer.conjur.net/reference/tools/conjurenv#Format.of.environment.configuration
 
-ADD conjur /etc
+ADD ./conjur /etc/conjur
 
 ##########################################################################
 ################# Nothing should be changed below this point #############
