@@ -24,7 +24,7 @@ Log into Conjur, and store your Mysql password here, create appropriate permissi
 
 ```
     conjur variable create demo/docker/mysql/password 
-    conjur variable values add demo/docker/mysql/password <MYSQL PASSWORD>UN 
+    conjur variable values add demo/docker/mysql/password <MYSQL PASSWORD> 
     conjur layer create demo/docker/containers/wordpress 
     conjur resource permit variable:demo/docker/mysql/password layer:demo/docker/containers/wordpress execute
 ```
