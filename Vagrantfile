@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder '.', '/vagrant'
 
   config.vm.provision :docker do |d|
-    d.pull_images "ubuntu", "tutum/mysql", "tutum/wordpress-stackable"  
+    d.pull_images "tutum/mysql", "tutum/wordpress-stackable"  
   end
 
   # This seems to be necessary for networking to work on jon's machine
