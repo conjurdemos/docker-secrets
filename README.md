@@ -128,8 +128,6 @@ Create a `.conjurenv` file which describes the secrets and other configuration v
 
 ```
 $ cat << ENV > .conjurenv
-db_host: "$mysql_ip"
-db_port: 3306
 db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
@@ -152,7 +150,7 @@ $ echo $secrets_file
 Run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
 
 ```
-$ docker run -d -P --name 'wordpress' --env-file $secrets_file conjur-wordpress
+$ docker run -d -P --name 'wordpress' -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
 ```
 
 Note: The container will refuse to start if identity parameters are not provided.
