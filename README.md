@@ -277,4 +277,3 @@ $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 [2014-06-16 18:45:33 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 [2014-06-16 18:46:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
-
