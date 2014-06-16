@@ -1,3 +1,0 @@
-db_host: "172.17.0.2"
-db_port: "3306"
-db_pass: !var demo/docker/mysql/password
