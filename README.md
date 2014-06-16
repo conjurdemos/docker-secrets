@@ -6,9 +6,9 @@ It works like this:
 
 1. Launch a Docker container running MySQL. We obtain the MySQL IP address and admin password from the Docker log.
 1. Store the MySQL admin password in a Conjur [variable](https://developer.conjur.net/reference/services/directory/variable).
-1. Launch Wordpress in a Docker, MySQL connection information via the process environment. It will fetch the MySQL admin password, and provide this along with the MySQL IP address and port to Wordpress via the process environment.
+1. Launch Wordpress in Docker, with MySQL connection host, port, and admin password obtained via the process environment.
 1. Wordpress is running! Secrets are completely externalized and never stored on the hard drive. 
-1. Conjur activity audit shows all MySQL admin password events.
+1. Conjur audit records shows all MySQL admin password events.
 
 As a follow-on example, Wordpress can be configured to use its own Conjur identity. This step adds additional detail to the Conjur audit log, and enables additional access-control features.
 
@@ -191,3 +191,16 @@ Cleanup the secrets file:
 ```
 $ rm $secrets_file
 ```
+
+# Password audit
+
+Conjur shows the complete record of creation and usage of the password:
+
+```
+$ conjur audit resource --short variable:demo/docker/$ns/mysql/password
+[2014-06-16 16:58:36 UTC] demo:user:alice created resource demo:variable:demo/docker/vaza00/mysql/password owned by demo:user:alice
+[2014-06-16 17:53:41 UTC] demo:user:alice checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+```
+
+If the MySQL password had been changed by another user, or used from another location, the audit record would report it.
+
