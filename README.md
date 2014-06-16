@@ -204,3 +204,77 @@ $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 
 If the MySQL password had been changed by another user, or used from another location, the audit record would report it.
 
+# Wordpress host identity
+
+If a service or application needs to interact with Conjur itself, it must be provided with its own identity to do so. Creating a Wordpress host identity also demonstrates better fine-grained authorization, as well as separation of duties between the roles which can update the password and those which can fetch it.
+
+The following commands create a Conjur [Host](http://developer.conjur.net/reference/services/directory/host) record for the Wordpress container. The host information is stored in a *wordpress* sub-directory.
+
+
+```
+$ mkdir wordpress
+$ conjur host create demo/docker/$ns/wordpress | tee wordpress/host.json
+{
+  "id": "demo/docker/$ns/wordpress",
+  …
+  "api_key": "3347e103h8ghze21dxv3b2y19vm6sq93ev3mw7bn13q47f883kxjhaa"
+}
+$ cat << CONJURRC > wordpress/.conjurrc
+netrc_path: ./.netrc
+CONJURRC
+```
+
+Once the host is created, we give it permission to `execute` (fetch) the variable:
+
+```
+$ conjur resource permit variable:demo/docker/$ns/mysql/password host:demo/docker/$ns/wordpress execute
+```
+
+Next, we change to the *wordpress* directory and login as the host.
+
+```
+$ cd wordpress
+$ host_id=`cat host.json | jsonfield id`
+$ host_api_key=`cat host.json | jsonfield api_key`
+$ conjur authn login -u host/$host_id -p $host_api_key
+Logged in
+$ conjur authn whoami
+{"account":"demo","username":"host/demo/docker/vaza00/wordpress"}
+```
+
+Verify that the secrets are available:
+
+```
+$ conjur env check
+db_pass: available
+```
+
+And now we can run Wordpress using the same command sequence as above. In this case, we are running as the very permissions-limited `wordpress` role, rathan than using our own role.
+
+```
+$ secrets_file=`conjur env template /vagrant/wordpress-secrets.erb`
+$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
+$ docker logs wordpress
+=> Trying to connect to MySQL/MariaDB using:
+========================================================================
+      Database Host Address:  172.17.0.2
+      Database Port number:   3306
+      Database Name:          wordpress
+      Database Username:      admin
+      Database Password:      Cn1T6PlSR8Dq
+========================================================================
+=> Skipped creation of database wordpress – it already exists.
+… etc
+```
+
+## Audit the admin password
+
+The audit record for the MySQL password shows that the Wordpress host is accessing the password directly.
+
+```
+$ conjur audit resource --short variable:demo/docker/$ns/mysql/password
+[2014-06-16 16:59:41 UTC] demo:user:alice permitted demo:host:demo/docker/vaza00/wordpress to execute demo:variable:demo/docker/vaza00/mysql/password (grant option: false)
+[2014-06-16 18:45:33 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+[2014-06-16 18:46:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+```
+
