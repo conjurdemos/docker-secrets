@@ -24,7 +24,11 @@ To run this demo, you need the following:
 
 ## Vagrant up (optional)
 
-Bring up the Docker environment. If you have Docker on your machine, you can use it as is. Otherwise, bring it up using Vagrant and login:
+For the purposes of this demo, we use Vagrant to bring up a Docker environment. This step doesn't have anything to do with the Docker functionality of the demo per se, it's just an easy way to get Docker going. 
+
+If you already have Docker running on your machine, you can skip this section.
+
+If you don't, run these commands to bring up Docker using Vagrant, and login to the new VM:
 
 ```
 $ vagrant up
@@ -33,9 +37,11 @@ $ vagrant ssh
 
 ## Initialize Conjur
 
-In order to manage secret, permissions and host identity for this demo, Conjur CLI setup is required.
+We will manage Conjur secrets, permissions, and identity through the [Conjur CLI](http://developer.conjur.net/setup/client_install/cli.html). Use these steps to configure the CLI and log yourself in.
 
 ### conjur init
+
+Configure and secure the connection to Conjur:
 
 ```
 $ conjur init
@@ -53,6 +59,8 @@ Wrote configuration to /home/vagrant/.conjurrc
 
 ### conjur authn login
 
+Log yourself in:
+
 ```
 $ conjur authn login
 Enter your username to log into Conjur: alice
@@ -62,9 +70,9 @@ Logged in
 
 ### create namespace for demo assets
 
-Although this is not mandatory for succcessful accomplishment of the demo, it make sense to use namespace to separate demo assets from anything else in your Conjur server.
+Using a namespace keeps the resources and permissions that you create for this demo separate from anything else in your Conjur server.
 
-Command below generates random unique six-chars ID.
+This command generates and stores a unique six-character ID:
 
 ```
 $ ns=`conjur id create` 
@@ -72,7 +80,9 @@ $ ns=`conjur id create`
 
 ## Launch MySQL
 
-Run the MySQL container:
+With the setup steps complete, we can now begin setting up our demo system. The first service is a MySQL server running in a Docker container.
+
+Bring up MySQL using the following command:
 
 ```
 $ docker run -d --name 'mysqldemo' -t tutum/mysql
@@ -80,7 +90,9 @@ $ docker run -d --name 'mysqldemo' -t tutum/mysql
 
 ### Inspect MySQL
 
-Find out the admin password by checking the mysqldemo container log:
+MySQL is running in Docker now. We will obtain the admin password and the IP address so that we can provide them to the Wordpress server.
+
+Discover the `admin` password by checking the Docker container log, and store it in a shell variable:
 
 ``` 
 $ docker logs mysqldemo | grep "\-p"
@@ -88,7 +100,7 @@ mysql -uadmin -pvvPFUNzxj9MM -h<host> -P<port>
 $ mysql_password=vvPFUNzxj9MM
 ```
 
-Find out the mysql IP address in a similar fashion:
+Obtain and store the MySQL IP address in a similar fashion:
 
 ```
 $ docker inspect mysqldemo | grep IPAddress
@@ -98,7 +110,9 @@ $ mysql_ip="172.17.0.2"
 
 ## Store the MySQL password
 
-Store the MySQL admin password in a Conjur variable:
+The MySQL `admin` password will be stored in a Conjur [Variable](http://developer.conjur.net/reference/services/directory/variable), which is a secure, access controlled service for storing and distributing secrets.
+
+Load the admin password into a Conjur variable like this:
 
 ```
 $ conjur variable create -v $mysql_password demo/docker/$ns/mysql/password
@@ -111,7 +125,9 @@ $ conjur variable create -v $mysql_password demo/docker/$ns/mysql/password
 
 ## Create the Wordpress host identity in Conjur
 
-Create the Wordpress host, store it's ID and API key:
+When we launch Wordpress in a later step, it will be provided with the MySQL `admin` password that we just stored in Conjur. In order to get access to the password, the Wordpress container must have a Conjur identity, and its identity must be granted permission to fetch the password.
+
+The following command creates a Conjur [Host](http://developer.conjur.net/reference/services/directory/host) record for the Wordpress container, and stores its id and API key in shell variables:
 
 ```
 $ conjur host create demo/docker/$ns/wordpress | tee host.json
@@ -125,7 +141,7 @@ $ host_api_key=`cat host.json | jsonfield api_key`
 
 ```
 
-Give Wordpress permission to `execute` the variable:
+With the identity created, we can give Wordpress permission to `execute` (fetch) the variable:
 
 ```
 $ conjur resource permit variable:demo/docker/$ns/mysql/password host:demo/docker/$ns/wordpress execute
@@ -133,13 +149,25 @@ $ conjur resource permit variable:demo/docker/$ns/mysql/password host:demo/docke
 
 # Docker image preparation
 
-In order to launch docker-ized application, docker image is required. 
+As we've discussed, we are going to run Wordpress in a Docker container. To do this, we'll need a Docker image.
 
-We'll take already existing image with Wordpress, and set up Conjur tools on top of it, storing the result as new local image.
+We will start an existing Wordpress image and layer the Conjur tools and static configuration on top of it, then store the result as new local image.
+
+Just to be clear, the following information will be "baked in" to the image:
+
+* Wordpress code
+* Conjur command-line tools
+* `conjur init` configuration, to enable the CLI to make a secure connection to Conjur
+* A [conjur env](http://developer.conjur.net/reference/tools/conjurenv) .conjurenv file, which describes (but does not contain) the secrets needed by Wordpress
+
+And the following are *not* built into the image, but obtained by the container at runtime:
+
+* Conjur host identity
+* MySQL admin password
 
 ## Prepare Conjur files to be used by image
 
-Create the `.conjurenv` file which will expose secrets and other configuration to Wordpress:
+Create the `.conjurenv` file which describes the secrets and other configuration needed by Wordpress:
 
 ```
 $ mkdir conjur
@@ -151,7 +179,7 @@ db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
 
-Create the `conjur.conf` which Wordpress will use:
+Create the `conjur.conf` which Wordpress will use to connect to Conjur
 
 ```
 conjur init -f ./conjur.conf
