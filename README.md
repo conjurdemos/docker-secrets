@@ -277,3 +277,87 @@ $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 [2014-06-16 18:45:33 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 [2014-06-16 18:46:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
+
+# Conjur-ized Docker container
+
+In the previous case, the Docker server was acting as the Docker host, and passing the Wordpress environment variables through the `docker run` command.
+
+It's also possible to let the Docker container *itself* assume the Conjur host identity, and fetch the secrets itself.
+
+We'll start by updating our *wordpress* configuration to have a `.conjurrc` file with full connection and security info:
+
+
+```
+$ cd wordpress
+$ conjur init -f ./.conjurrc
+Enter the hostname (and optional port) of your Conjur endpoint: ec2-54-83-34-173.compute-1.amazonaws.com
+
+SHA1 Fingerprint=EC:E3:BD:2E:61:74:43:31:5C:37:4A:A6:BF:E2:51:CB:19:E2:46:4C
+
+Please verify this certificate on the appliance using command:
+                openssl x509 -fingerprint -noout -in ~conjur/etc/ssl/conjur.pem
+
+Trust this certificate (yes/no): yes
+Wrote certificate to ./conjur-demo.pem
+File ./.conjurrc exists. Overwrite (yes/no): yes
+Wrote configuration to ./.conjurrc
+```
+
+Next, we'll create a secrets config which contains the host, port, and MySQL password:
+
+```
+$ cat << ENV > .conjurenv
+db_host: "$mysql_ip"
+db_port: "3306"
+db_pass: !var demo/docker/$ns/mysql/password
+ENV
+```
+
+With this information, we build a custome Docker container. This container starts with Wordpress, and layers on the following:
+
+* Conjur command-line interface (CLI)
+* `.conjurrc` Conjur server configuration
+* `.conjurenv` secrets configuration
+* A startup script which logs into Conjur, fetches secrets, and runs Wordpress
+
+Let's go:
+
+
+```
+$ cp /vagrant/Dockerfile .
+$ cp /vagrant/conjur.sh .
+$ docker build -t conjur-wordpress ./
+```
+
+With the custom container built, we run it with the `CONJUR_HOST_ID` and `COJNUR_API_KEY` environment variables. These are used by the container to login to Conjur and fetch the secrets:
+
+```
+$ docker run -d -P --name conjur-wordpress -e CONJUR_HOST_ID=$host_id -e CONJUR_API_KEY=$host_api_key conjur-wordpress
+f8fe8fa0991f59d693920b4405f04b1d887dae6269a0d797aa1b0ac83317f097
+$ docker logs conjur-wordpress
+Logged in
+=> Trying to connect to MySQL/MariaDB using:
+========================================================================
+      Database Host Address:  172.17.0.2
+      Database Port number:   3306
+      Database Name:          wordpress
+      Database Username:      admin
+      Database Password:      Cn1T6PlSR8Dq
+========================================================================
+=> Skipped creation of database wordpress – it already exists.
+/usr/lib/python2.7/dist-packages/supervisor/options.py:295: UserWarning: Supervisord is running as root and it is searching for its configuration file in default locations (including its current working directory); you probably want to specify a "-c" argument specifying an absolute path to a configuration file for improved security.
+  'Supervisord is running as root and it is searching '
+2014-06-16 19:56:04,600 CRIT Supervisor running as root (no user in config file)
+2014-06-16 19:56:04,601 WARN Included extra file "/etc/supervisor/conf.d/supervisord-apache2.conf" during parsing
+2014-06-16 19:56:04,624 INFO RPC interface 'supervisor' initialized
+2014-06-16 19:56:04,624 CRIT Server 'unix_http_server' running without any HTTP authentication checking
+2014-06-16 19:56:04,624 INFO supervisord started with pid 14
+```
+
+When we check the password audit, we can see again that the password is being retrieved by the `wordpress` host:
+
+```
+$ conjur audit resource --short variable:demo/docker/$ns/mysql/password
+[2014-06-16 19:54:12 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+```
+
