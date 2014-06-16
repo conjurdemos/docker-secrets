@@ -28,15 +28,6 @@ ADD ./conjur /etc/conjur
 ################# Nothing should be changed below this point #############
 ##########################################################################
 
-# Fix .conjurrc to find certificate in predefined location within container FS instead of local path(whatever it was)
-#RUN sed -i -e 's/cert_file: .*//' /etc/.conjurrc
-#RUN echo "cert_file: /conjur.pem" >> /etc/.conjurrc
-
-# File .netrc with authentication data for container identity should be managed by host OS outside of Docker
-# Directory '/conjur' with '.netrc' file is expected to be mounted in runtime
-# Fix below adjusts .conjurrc to look for identity file in mounted directory
-#RUN echo "netrc_path: /conjur/.netrc" >> /.conjurrc
-
 # explicit setting for future launches of 'conjur env' to find .conjurrc within container FS
 ENV CONJURRC /etc/conjur/conjur.conf
 
