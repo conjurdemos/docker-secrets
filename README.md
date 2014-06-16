@@ -214,7 +214,7 @@ $ docker build -t conjur-wordpress ./
 # Runtime
 
 
-## Launch new container with mounted identity directory 
+## Launch new container with host credentials as runtime options
 
 Run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
 
@@ -238,3 +238,19 @@ You're all set. Inspect logs of just launched container:
     => Done!
     ... <other wordpress output skipped> ...
 ```
+
+## Inspect audit trail in Conjur
+
+In audit trail (omit `-s` switch to observe full details) we see how permissions were granted, and than how host accessed the variable
+
+$ conjur audit resource -s variable:demo/docker/$ns/mysql/password 
+[2014-06-13 16:57:31 UTC] demo:user:admin created resource demo:variable:demo/docker/vas900/mysql/password owned by demo:user:admin
+[2014-06-13 16:57:50 UTC] demo:user:admin checked that they can execute demo:variable:demo/docker/vas900/mysql/password (true)
+[2014-06-13 17:00:31 UTC] demo:user:admin permitted demo:host:demo/docker/vas900/wordpress to execute demo:variable:demo/docker/vas900/mysql/password (grant option: false)
+[2014-06-13 17:10:55 UTC] demo:host:demo/docker/vas900/wordpress checked that they can execute demo:variable:demo/docker/vas900/mysql/password (true)
+$ conjur audit role -s host:demo/docker/$ns/wordpress
+[2014-06-13 16:58:25 UTC] demo:user:admin created role demo:host:demo/docker/vas900/wordpress
+[2014-06-13 16:58:25 UTC] demo:user:admin permitted demo:host:demo/docker/vas900/wordpress to read demo:host:demo/docker/vas900/wordpress (grant option: false)
+[2014-06-13 17:00:31 UTC] demo:user:admin permitted demo:host:demo/docker/vas900/wordpress to execute demo:variable:demo/docker/vas900/mysql/password (grant option: false)
+[2014-06-13 17:10:55 UTC] demo:host:demo/docker/vas900/wordpress checked that they can execute demo:variable:demo/docker/vas900/mysql/password (true)
+
