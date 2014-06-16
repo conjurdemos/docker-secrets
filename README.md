@@ -161,13 +161,11 @@ DB_NAME=wordpress
 DB_USER=admin
 ```
 
-Now run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
+Now run the Conjur-ized Wordpress container, providing secrets through the environment file: 
 
 ```
 $ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
 ```
-
-Note: The container will refuse to start if identity parameters are not provided.
 
 You're all set. Inspect logs of just launched container:
 
@@ -175,11 +173,11 @@ You're all set. Inspect logs of just launched container:
 $ docker logs wordpress
 => Trying to connect to MySQL/MariaDB using:
 ========================================================================
-  Database Host Address:  <mysql host as defined in .conjurenv>
-  Database Port number:   <mysql port as defined in .conjurenv>
+  Database Host Address:  172.17.0.2
+  Database Port number:   3306
   Database Name:          wordpress
   Database Username:      admin
-  Database Password:      <mysql password obtained from Conjur>
+  Database Password:      vvPFUNzxj9MM
 ========================================================================
 => Creating database wordpress
 => Done!
@@ -342,7 +340,7 @@ Logged in
       Database Port number:   3306
       Database Name:          wordpress
       Database Username:      admin
-      Database Password:      Cn1T6PlSR8Dq
+      Database Password:      vvPFUNzxj9MM
 ========================================================================
 => Skipped creation of database wordpress – it already exists.
 /usr/lib/python2.7/dist-packages/supervisor/options.py:295: UserWarning: Supervisord is running as root and it is searching for its configuration file in default locations (including its current working directory); you probably want to specify a "-c" argument specifying an absolute path to a configuration file for improved security.
