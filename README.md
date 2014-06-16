@@ -147,10 +147,24 @@ $ echo $secrets_file
 /dev/shm/conjur20140616-18625-134abai.saved
 ```
 
-Run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
+First, inspect the environment of the container, to see that it contains the expected variables:
 
 ```
-$ docker run -d -P --name 'wordpress' -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
+$ docker run -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable env
+HOME=/
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=22e31c23d6a0
+DB_PASS=vvPFUNzxj9MM
+DB_HOST=172.17.0.2
+DB_PORT=3306
+DB_NAME=wordpress
+DB_USER=admin
+```
+
+Now run the Conjur-ized Wordpress container, providing Host ID and API key as parameters 
+
+```
+$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
 ```
 
 Note: The container will refuse to start if identity parameters are not provided.
@@ -158,17 +172,18 @@ Note: The container will refuse to start if identity parameters are not provided
 You're all set. Inspect logs of just launched container:
 
 ```
-    => Trying to connect to MySQL/MariaDB using:
-    ========================================================================
-      Database Host Address:  <mysql host as defined in .conjurenv>
-      Database Port number:   <mysql port as defined in .conjurenv>
-      Database Name:          wordpress
-      Database Username:      admin
-      Database Password:      <mysql password obtained from Conjur>
-    ========================================================================
-    => Creating database wordpress
-    => Done!
-    ... <other wordpress output skipped> ...
+$ docker logs wordpress
+=> Trying to connect to MySQL/MariaDB using:
+========================================================================
+  Database Host Address:  <mysql host as defined in .conjurenv>
+  Database Port number:   <mysql port as defined in .conjurenv>
+  Database Name:          wordpress
+  Database Username:      admin
+  Database Password:      <mysql password obtained from Conjur>
+========================================================================
+=> Creating database wordpress
+=> Done!
+... <other wordpress output skipped> ...
 ```
 
 Cleanup the secrets file:
