@@ -255,7 +255,7 @@ $ docker logs wordpress
 ```
 
 
-## Audit the admin password
+## Audit access to the MySQL password
 
 The audit record for the MySQL password shows that the Wordpress host is accessing the password directly.
 
@@ -267,25 +267,26 @@ $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 [2014-06-16 18:06:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
 
-## Cleanup
-
-Remove `wordpress` directory we used to temporary handle configuration for Conjur wordpress host:
-```
-$ cd ../
-$ rm -r ./wordpress
-```
-
 # Conjur-ized Docker container
 
 In the previous case, the Docker server was acting as the Docker host, and passing secrets through the `docker run` command.
 
-It's also possible to let the Docker container *itself* assume the Conjur host identity, and fetch the secrets itself.
+It's also possible to let the Docker container *itself* assume the Conjur host identity, and fetch the secrets itself. 
 
-We'll start by updating our *wordpress* configuration to have a `.conjurrc` file with full connection and security info:
+We will use attached Dockerfile to build a custom image, which is than used to launch containers acting as Conjur hosts.
+
+## Prepare configuration files 
+
+Create directory with configuration files, which will be used during image build:
 
 ```
-$ mkdir wordpress
-$ cd wordpress
+$ mkdir conjur-image-config
+$ cd conjur-image-config
+```
+
+We'll start with adding `.conjurrc` file with full connection and security info:
+
+```
 $ conjur init -f ./.conjurrc
 Enter the hostname (and optional port) of your Conjur endpoint: conjur
 
@@ -299,7 +300,7 @@ Wrote certificate to ./conjur-demo.pem
 Wrote configuration to ./.conjurrc
 ```
 
-Next, we'll create a Conjur secrets config file, `.conjurenv`, which contains the host, port, and MySQL password:
+Next, we'll create a Conjur secrets config file, `.conjurenv`, which contains the host, port, and link to the previously created Conjur Variable storing MySQL password:
 
 ```
 $ cat << ENV > .conjurenv
@@ -309,12 +310,20 @@ db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
 
-With this information, we build a custom Docker container. This container starts with a basic Wordpress image, and layers on the following:
+## Build custom Docker image
+
+Using just created configuration directory and Dockerfile provided, we build a custom Docker image. It starts with a basic Wordpress image, and layers on the following:
 
 * Conjur command-line interface (CLI)
 * `.conjurrc` Conjur server configuration
 * `.conjurenv` secrets configuration
-* A startup script which logs into Conjur, fetches secrets, and runs Wordpress
+* A startup script which logs into Conjur, fetches secrets, and runs container's command
+
+Image itself will not contain any authentication information or secrets.
+
+    With minor adjustment, attached Dockerfile may be used to set up same functionality on top of almost any Docker image. 
+    File `.conjurenv` created on previous step, is used to link Conjur variables to environment variables according to the application needs. 
+    [More details](http://developer.conjur.net/reference/tools/conjurenv#Format.of.environment.configuration)
 
 Let's go:
 
@@ -325,7 +334,9 @@ $ cp /vagrant/conjur.sh .
 $ docker build -t conjur-wordpress ./
 ```
 
-With the custom container built, we run it with the `CONJUR_HOST_ID` and `CONJUR_API_KEY` environment variables. These are used by the container to login to Conjur and fetch the secrets:
+## Launch the container, providing host identity at runtime
+
+Now we use custom image to run a container from it, passing `CONJUR_HOST_ID` and `CONJUR_API_KEY` environment variables. These are used by the container to login to Conjur and fetch the secrets:
 
 ```
 $ docker run -d -P --name conjur-wordpress -e CONJUR_HOST_ID=$host_id -e CONJUR_API_KEY=$host_api_key conjur-wordpress
@@ -343,6 +354,10 @@ Logged in
 => Skipped creation of database wordpress – it already exists.
 … etc
 ```
+
+Note, that different host IDs and API keys can be used for different containers launched from the same image.
+
+## Audit access to the MySQL password
 
 When we check the password audit, we can see again that the password is being retrieved by the `wordpress` host:
 

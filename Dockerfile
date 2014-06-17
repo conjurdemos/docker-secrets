@@ -11,30 +11,31 @@ RUN apt-get -y -y install make ruby2.0 ruby2.0-dev ruby-json
 RUN gem install conjur-cli
 
 ##########################################################################
-########## Conjur configuration (example files used) #####################
-########## update them for production, but keep target names #############
+########## Conjur configuration   ########################################
+########## Nothing should be changed below this point ####################
 ##########################################################################
 
-# Files describing Conjur endpoint
-# They should be generated with "conjur init" locally before the build
+# Directory conjur-image-config should be created before the build
+# It should have following contents:
+
+# 1) Files describing Conjur endpoint: .conjurrc and *.pem
+# They are generated with "conjur init -f ./.conjurrc" within the directory
 # See details at http://developer.conjur.net/reference/tools/init.html
 
-# File describing variables to be retrieved, 
+# 2) File describing variables to be provided to the CMD: .conjurenv 
+# Should be designed manually according to the application needs
 # See details at http://developer.conjur.net/reference/tools/conjurenv#Format.of.environment.configuration
 
-ADD ./wordpress /etc/wordpress
-
-##########################################################################
-################# Nothing should be changed below this point #############
-##########################################################################
+ADD ./conjur-image-config /etc/conjur
 
 # explicit setting for future launches of 'conjur env' to find .conjurrc within container FS
-ENV CONJURRC /etc/wordpress/.conjurrc
+ENV CONJURRC /etc/conjur/.conjurrc
 
-# Simple wrapper to check presence of /conjur/.netrc (directory /conjur is expected to be mounted during container run)
+# Simple wrapper to perform authentication and launch "conjur env"
+# File is delivered along with this Dockerfile 
 ADD conjur.sh /conjur.sh
 
-# check presence of .netrc and launch "conjur env" with whatever CMD provided (by default CMD from original image)
+# Wrapper launches "conjur env" with whatever CMD provided (by default CMD from original image)
 # NOTE: double-quotes are important! (see http://stackoverflow.com/questions/20436586/my-docker-container-will-run-a-command-from-within-the-container-but-not-with-e )
 ENTRYPOINT ["/conjur.sh"]
 

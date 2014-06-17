@@ -13,4 +13,4 @@ if [ ! -z "$MISSING_VARIABLES" ] ; then
 fi
 
 conjur authn login -u host/$CONJUR_HOST_ID -p $CONJUR_API_KEY
-conjur env run -c /etc/wordpress/.conjurenv -- $*
+conjur env run -c /etc/conjur/.conjurenv -- $*
