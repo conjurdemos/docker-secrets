@@ -173,13 +173,7 @@ $ docker logs wordpress
 
 ## Cleanup
 
-Cleanup the secrets file:
-
-```
-$ rm $secrets_file
-```
-
-Stop and delete the container:
+Stop and delete the container we just launched:
 
 ```
 $ docker stop wordpress
@@ -192,8 +186,9 @@ Conjur shows the complete record of creation and usage of the password:
 
 ```
 $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
-[2014-06-16 16:58:36 UTC] demo:user:alice created resource demo:variable:demo/docker/vaza00/mysql/password owned by demo:user:alice
+[2014-06-16 17:48:36 UTC] demo:user:alice created resource demo:variable:demo/docker/vaza00/mysql/password owned by demo:user:alice
 [2014-06-16 17:53:41 UTC] demo:user:alice checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+[2014-06-16 17:55:09 UTC] demo:user:alice checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
 
 If the MySQL password had been changed by another user, or used from another location, the audit record would report it.
@@ -213,21 +208,20 @@ $ conjur host create demo/docker/$ns/wordpress | tee wordpress/host.json
   …
   "api_key": "3347e103h8ghze21dxv3b2y19vm6sq93ev3mw7bn13q47f883kxjhaa"
 }
-$ cat << CONJURRC > wordpress/.conjurrc
-netrc_path: ./.netrc
-CONJURRC
 ```
 
 Once the host is created, we give it permission to `execute` (fetch) the variable:
 
 ```
 $ conjur resource permit variable:demo/docker/$ns/mysql/password host:demo/docker/$ns/wordpress execute
+Permission granted
 ```
 
 Next, we change to the *wordpress* directory and login as the host.
 
 ```
 $ cd wordpress
+$ echo "netrc_path: ./.netrc" > .conjurrc
 $ host_id=`cat host.json | jsonfield id`
 $ host_api_key=`cat host.json | jsonfield api_key`
 $ conjur authn login -u host/$host_id -p $host_api_key
@@ -260,15 +254,25 @@ $ docker logs wordpress
 … etc
 ```
 
+
 ## Audit the admin password
 
 The audit record for the MySQL password shows that the Wordpress host is accessing the password directly.
 
 ```
 $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
-[2014-06-16 16:59:41 UTC] demo:user:alice permitted demo:host:demo/docker/vaza00/wordpress to execute demo:variable:demo/docker/vaza00/mysql/password (grant option: false)
-[2014-06-16 18:45:33 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
-[2014-06-16 18:46:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+… 
+[2014-06-16 17:59:41 UTC] demo:user:alice permitted demo:host:demo/docker/vaza00/wordpress to execute demo:variable:demo/docker/vaza00/mysql/password (grant option: false)
+[2014-06-16 18:05:33 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+[2014-06-16 18:06:37 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+```
+
+## Cleanup
+
+Remove `wordpress` directory we used to temporary handle configuration for Conjur wordpress host:
+```
+$ cd ../
+$ rm -r ./wordpress
 ```
 
 # Conjur-ized Docker container
@@ -280,6 +284,7 @@ It's also possible to let the Docker container *itself* assume the Conjur host i
 We'll start by updating our *wordpress* configuration to have a `.conjurrc` file with full connection and security info:
 
 ```
+$ mkdir wordpress
 $ cd wordpress
 $ conjur init -f ./.conjurrc
 Enter the hostname (and optional port) of your Conjur endpoint: conjur
@@ -291,7 +296,6 @@ Please verify this certificate on the appliance using command:
 
 Trust this certificate (yes/no): yes
 Wrote certificate to ./conjur-demo.pem
-File ./.conjurrc exists. Overwrite (yes/no): yes
 Wrote configuration to ./.conjurrc
 ```
 
@@ -305,7 +309,7 @@ db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
 
-With this information, we build a custome Docker container. This container starts with a basic Wordpress image, and layers on the following:
+With this information, we build a custom Docker container. This container starts with a basic Wordpress image, and layers on the following:
 
 * Conjur command-line interface (CLI)
 * `.conjurrc` Conjur server configuration
@@ -315,6 +319,7 @@ With this information, we build a custome Docker container. This container start
 Let's go:
 
 ```
+$ cd ../
 $ cp /vagrant/Dockerfile .
 $ cp /vagrant/conjur.sh .
 $ docker build -t conjur-wordpress ./
@@ -336,18 +341,13 @@ Logged in
       Database Password:      vvPFUNzxj9MM
 ========================================================================
 => Skipped creation of database wordpress – it already exists.
-/usr/lib/python2.7/dist-packages/supervisor/options.py:295: UserWarning: Supervisord is running as root and it is searching for its configuration file in default locations (including its current working directory); you probably want to specify a "-c" argument specifying an absolute path to a configuration file for improved security.
-  'Supervisord is running as root and it is searching '
-2014-06-16 19:56:04,600 CRIT Supervisor running as root (no user in config file)
-2014-06-16 19:56:04,601 WARN Included extra file "/etc/supervisor/conf.d/supervisord-apache2.conf" during parsing
-2014-06-16 19:56:04,624 INFO RPC interface 'supervisor' initialized
-2014-06-16 19:56:04,624 CRIT Server 'unix_http_server' running without any HTTP authentication checking
-2014-06-16 19:56:04,624 INFO supervisord started with pid 14
+… etc
 ```
 
 When we check the password audit, we can see again that the password is being retrieved by the `wordpress` host:
 
 ```
 $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
-[2014-06-16 19:54:12 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
+… 
+[2014-06-16 18:24:12 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
