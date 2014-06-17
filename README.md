@@ -122,35 +122,22 @@ $ conjur variable create -v $mysql_password demo/docker/$ns/mysql/password
 }
 ```
 
-## Enumerate the secrets and configuration used by Wordpress
-
-Create a `.conjurenv` file which describes the secrets and other configuration values needed by Wordpress:
-
-```
-$ cat << ENV > .conjurenv
-db_pass: !var demo/docker/$ns/mysql/password
-ENV
-```
-
 # Run Wordpress
 
-Use Conjur to load the secrets used by Wordpress into a temp file:
+Now that the password is in Conjur, we will use it to run Wordpress. We will pass it to the container using the `-e` option of [`docker run`](https://docs.docker.com/reference/commandline/cli/#run):
+
+    Usage: docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+    
+    Run a command in a new container
+      ...
+      -e, --env=[]               Set environment variables
+
+
+
+First, let's run the `env` command in the container to see that it contains the expected variables:
 
 ```
-$ secrets_file=`conjur env template /vagrant/wordpress-secrets.erb`
-```
-
-Note that this secrets file is in the memory-mapped folder `/dev/shm`, it's not a physical file:
-
-```
-$ echo $secrets_file
-/dev/shm/conjur20140616-18625-134abai.saved
-```
-
-First, inspect the environment of the container, to see that it contains the expected variables:
-
-```
-$ docker run -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable env
+$ docker run -e DB_HOST=$mysql_ip -e DB_PORT=3306 -e DB_PASS=`conjur variable value demo/docker/$ns/mysql/password` tutum/wordpress-stackable env
 HOME=/
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 HOSTNAME=22e31c23d6a0
@@ -161,13 +148,13 @@ DB_NAME=wordpress
 DB_USER=admin
 ```
 
-Now run the Conjur-ized Wordpress container, providing secrets through the environment file: 
+Now run the Conjur-ized Wordpress container, again providing secrets through the environment: 
 
 ```
-$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
+$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 -e DB_PASS=`conjur variable value demo/docker/$ns/mysql/password` tutum/wordpress-stackable
 ```
 
-You're all set. Inspect logs of just launched container:
+You're all set. Inspect the logs of the new container:
 
 ```
 $ docker logs wordpress
@@ -184,10 +171,19 @@ $ docker logs wordpress
 ... <other wordpress output skipped> ...
 ```
 
+## Cleanup
+
 Cleanup the secrets file:
 
 ```
 $ rm $secrets_file
+```
+
+Stop and delete the container:
+
+```
+$ docker stop wordpress
+$ docker rm wordpress
 ```
 
 # Password audit
@@ -213,7 +209,7 @@ The following commands create a Conjur [Host](http://developer.conjur.net/refere
 $ mkdir wordpress
 $ conjur host create demo/docker/$ns/wordpress | tee wordpress/host.json
 {
-  "id": "demo/docker/$ns/wordpress",
+  "id": "demo/docker/vaza00/wordpress",
   …
   "api_key": "3347e103h8ghze21dxv3b2y19vm6sq93ev3mw7bn13q47f883kxjhaa"
 }
@@ -240,18 +236,17 @@ $ conjur authn whoami
 {"account":"demo","username":"host/demo/docker/vaza00/wordpress"}
 ```
 
-Verify that the secrets are available:
+Verify that the secret is available:
 
 ```
-$ conjur env check
-db_pass: available
+$ conjur resource check variable:demo/docker/$ns/mysql/password execute
+true
 ```
 
 And now we can run Wordpress using the same command sequence as above. In this case, we are running as the very permissions-limited `wordpress` role, rathan than using our own role.
 
 ```
-$ secrets_file=`conjur env template /vagrant/wordpress-secrets.erb`
-$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 --env-file $secrets_file tutum/wordpress-stackable
+$ docker run -d -P --name wordpress -e DB_HOST=$mysql_ip -e DB_PORT=3306 -e DB_PASS=`conjur variable value demo/docker/$ns/mysql/password` tutum/wordpress-stackable
 $ docker logs wordpress
 => Trying to connect to MySQL/MariaDB using:
 ========================================================================
@@ -278,17 +273,16 @@ $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 
 # Conjur-ized Docker container
 
-In the previous case, the Docker server was acting as the Docker host, and passing the Wordpress environment variables through the `docker run` command.
+In the previous case, the Docker server was acting as the Docker host, and passing secrets through the `docker run` command.
 
 It's also possible to let the Docker container *itself* assume the Conjur host identity, and fetch the secrets itself.
 
 We'll start by updating our *wordpress* configuration to have a `.conjurrc` file with full connection and security info:
 
-
 ```
 $ cd wordpress
 $ conjur init -f ./.conjurrc
-Enter the hostname (and optional port) of your Conjur endpoint: ec2-54-83-34-173.compute-1.amazonaws.com
+Enter the hostname (and optional port) of your Conjur endpoint: conjur
 
 SHA1 Fingerprint=EC:E3:BD:2E:61:74:43:31:5C:37:4A:A6:BF:E2:51:CB:19:E2:46:4C
 
@@ -301,7 +295,7 @@ File ./.conjurrc exists. Overwrite (yes/no): yes
 Wrote configuration to ./.conjurrc
 ```
 
-Next, we'll create a secrets config which contains the host, port, and MySQL password:
+Next, we'll create a Conjur secrets config file, `.conjurenv`, which contains the host, port, and MySQL password:
 
 ```
 $ cat << ENV > .conjurenv
@@ -311,7 +305,7 @@ db_pass: !var demo/docker/$ns/mysql/password
 ENV
 ```
 
-With this information, we build a custome Docker container. This container starts with Wordpress, and layers on the following:
+With this information, we build a custome Docker container. This container starts with a basic Wordpress image, and layers on the following:
 
 * Conjur command-line interface (CLI)
 * `.conjurrc` Conjur server configuration
@@ -320,14 +314,13 @@ With this information, we build a custome Docker container. This container start
 
 Let's go:
 
-
 ```
 $ cp /vagrant/Dockerfile .
 $ cp /vagrant/conjur.sh .
 $ docker build -t conjur-wordpress ./
 ```
 
-With the custom container built, we run it with the `CONJUR_HOST_ID` and `COJNUR_API_KEY` environment variables. These are used by the container to login to Conjur and fetch the secrets:
+With the custom container built, we run it with the `CONJUR_HOST_ID` and `CONJUR_API_KEY` environment variables. These are used by the container to login to Conjur and fetch the secrets:
 
 ```
 $ docker run -d -P --name conjur-wordpress -e CONJUR_HOST_ID=$host_id -e CONJUR_API_KEY=$host_api_key conjur-wordpress
@@ -358,4 +351,3 @@ When we check the password audit, we can see again that the password is being re
 $ conjur audit resource --short variable:demo/docker/$ns/mysql/password
 [2014-06-16 19:54:12 UTC] demo:host:demo/docker/vaza00/wordpress checked that they can execute demo:variable:demo/docker/vaza00/mysql/password (true)
 ```
-
